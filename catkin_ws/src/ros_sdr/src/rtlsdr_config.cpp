@@ -1,5 +1,5 @@
 #include "ros/ros.h"
-#include "dirk_tutorial/AddTwoInts.h"
+#include "ros_sdr/rtlsdr_config.h"
 #include <cstdlib>
 
 int main(int argc, char **argv)

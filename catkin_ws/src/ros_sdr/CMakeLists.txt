@@ -53,7 +53,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate services in the 'srv' folder
  add_service_files(
    FILES
-   AddTwoInts.srv
+   rtlsdr_config.srv
  )
 
 ## Generate actions in the 'action' folder
@@ -187,6 +187,10 @@ include_directories(
 # catkin_add_nosetests(test)
 
 
+set(CMAKE_CXX_FLAGS "-L/usr/local/lib/ -lrtlsdr -lusb-1.0")
+set(CMAKE_CXX_FLAGS "/usr/local/lib/librtlsdr.so.0 -lusb-1.0")
+
+
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(rtlsdr src/rtlsdr.cpp)
@@ -197,6 +201,6 @@ add_executable(listener src/listener.cpp)
 target_link_libraries(listener ${catkin_LIBRARIES})
 add_dependencies(listener ros_sdr_generate_messages_cpp)
 
-add_executable(add_two_ints_client src/add_two_ints_client.cpp)
-target_link_libraries(add_two_ints_client ${catkin_LIBRARIES})
-add_dependencies(add_two_ints_client ros_sdr_gencpp)
+add_executable(rtlsdr_config src/rtlsdr_config.cpp)
+target_link_libraries(rtlsdr_config ${catkin_LIBRARIES})
+add_dependencies(rtlsdr_config ros_sdr_gencpp)
