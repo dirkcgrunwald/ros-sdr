@@ -1,0 +1,7 @@
+int64 dev_index
+int64 frequency
+int32 gain
+int64 samplerate
+int64 
+---
+int64 sum
