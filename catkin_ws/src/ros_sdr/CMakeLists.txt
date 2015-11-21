@@ -47,13 +47,14 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
  add_message_files(
    FILES
-   Num.msg
+   rtlsdr_config.msg
+   rtlsdr_data.msg
  )
 
 ## Generate services in the 'srv' folder
  add_service_files(
    FILES
-   rtlsdr_config.srv
+   rtlsdr_config_srv.srv
  )
 
 ## Generate actions in the 'action' folder
@@ -67,6 +68,7 @@ find_package(catkin REQUIRED COMPONENTS
  generate_messages(
    DEPENDENCIES
    std_msgs
+   ros_sdr
  )
 
 ################################################
@@ -186,21 +188,13 @@ include_directories(
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
 
-
-set(CMAKE_CXX_FLAGS "-L/usr/local/lib/ -lrtlsdr -lusb-1.0")
-set(CMAKE_CXX_FLAGS "/usr/local/lib/librtlsdr.so.0 -lusb-1.0")
-
-
 include_directories(include ${catkin_INCLUDE_DIRS})
 
-add_executable(rtlsdr src/rtlsdr.cpp)
-target_link_libraries(rtlsdr ${catkin_LIBRARIES})
-add_dependencies(rtlsdr ros_sdr_generate_messages_cpp)
+add_executable(rtl_sdr src/rtl_sdr.cpp)
+target_link_libraries(rtl_sdr ${catkin_LIBRARIES} rtlsdr)
+add_dependencies(rtl_sdr ros_sdr_generate_messages_cpp)
 
 add_executable(listener src/listener.cpp)
 target_link_libraries(listener ${catkin_LIBRARIES})
 add_dependencies(listener ros_sdr_generate_messages_cpp)
 
-add_executable(rtlsdr_config src/rtlsdr_config.cpp)
-target_link_libraries(rtlsdr_config ${catkin_LIBRARIES})
-add_dependencies(rtlsdr_config ros_sdr_gencpp)
