@@ -49,6 +49,8 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    rtlsdr_config.msg
    rtlsdr_data.msg
+   hackrf_config.msg
+   hackrf_data.msg
  )
 
 ## Generate services in the 'srv' folder
@@ -56,6 +58,8 @@ find_package(catkin REQUIRED COMPONENTS
    FILES
    rtlsdr_config_srv.srv
    rtlsdr_config_current.srv
+   hackrf_config_srv.srv
+   hackrf_config_current.srv
  )
 
 ## Generate actions in the 'action' folder
@@ -196,7 +200,7 @@ target_link_libraries(rtl_sdr ${catkin_LIBRARIES} rtlsdr)
 add_dependencies(rtl_sdr ros_sdr_generate_messages_cpp)
 
 add_executable(hackrf_sdr src/hackrf_sdr.cpp)
-target_link_libraries(hackrf_sdr ${catkin_LIBRARIES} rtlsdr hackrf)
+target_link_libraries(hackrf_sdr ${catkin_LIBRARIES} hackrf)
 add_dependencies(hackrf_sdr ros_sdr_generate_messages_cpp)
 
 add_executable(listener src/listener.cpp)
