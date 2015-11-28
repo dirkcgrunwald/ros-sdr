@@ -11,13 +11,15 @@
 #include "ros_sdr/hackrf_data.h"
 #include "libhackrf/hackrf.h"
 
-#define DEFAULT_SAMPLE_RATE	2048000
+#define DEFAULT_SAMPLE_RATE	10000000
 #define DEFAULT_BUF_LENGTH	(16 * 16384)
 #define MINIMAL_BUF_LENGTH	512
 #define MAXIMAL_BUF_LENGTH	(256 * 16384)
 
 static hackrf_device *hackrfDev;
 
+static ros::Publisher hackrf_pub;
+static ros_sdr::hackrf_data msg;
 static bool hackrf_discard_samples = false;
 static ros::Time hackrf_discard_until;
 
@@ -50,46 +52,121 @@ static int hackRFclosestTargetRate(int rate)
   }
 }
 
+/* forward declare */
+int
+hackrf_set_config(hackrf_device *dev,
+		  ros_sdr::hackrf_config *output,
+		  ros_sdr::hackrf_config *input);
+
+
+bool hackrf_config_srv(ros_sdr::hackrf_config_srv::Request  &req,
+		   ros_sdr::hackrf_config_srv::Response &res)
+{
+  hackrf_set_config(hackrfDev, &res.output, &req.input);
+  hackrf_current_state = res.output;
+  ROS_INFO("COMBO sending back response:\n");
+  return true;
+}
+
+
+bool hackrf_config_current(ros_sdr::hackrf_config_current::Request  &req,
+		   ros_sdr::hackrf_config_current::Response &res)
+{
+  ROS_INFO("hackrf_config_current sending back response:");
+  res.output = hackrf_current_state;
+  return true;
+}
+
+
+int hackrf_rx_callback(hackrf_transfer* transfer)
+{
+  int i;
+  if ( hackrf_verbose ) {
+    fprintf(stderr,"rx_callback %d bytes\n", transfer -> valid_length);
+  }
+
+  ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d\n",
+	   transfer -> valid_length, transfer -> buffer[0],  transfer -> buffer[1]);
+
+  int offset = 0;
+  int lth = transfer -> valid_length;
+  std_msgs::UInt8MultiArray &buffer = msg.iq;
+  while (offset < lth) {
+    int left = transfer -> valid_length - offset;
+    int len = left;
+    if ( left > buffer.layout.dim[0].size ) {
+      len = buffer.layout.dim[0].size;
+    }
+    memcpy(buffer.data.data(), &(transfer -> buffer[offset]), len);
+    msg.output = hackrf_current_state;
+    buffer.layout.dim[0].size = len;
+    hackrf_pub.publish(msg);
+    offset += len;
+  }
+
+  return 0;
+}
+
+
+
 int
 hackrf_set_config(hackrf_device *dev,
 		  ros_sdr::hackrf_config *output,
 		  ros_sdr::hackrf_config *input)
 {
   int delay = 0;
+  bool restart_hackrf = false;
 
-  ROS_INFO("Configure HACKRF");
 
-  if ( output -> sampleRate != input -> sampleRate ) {
-    hackrf_set_sample_rate(dev, input -> sampleRate);
-    output -> sampleRate = input -> sampleRate;
+  if (hackrf_is_streaming(dev)) {
+    ROS_INFO("Configure HACKRF after stopping streaming..");
+    //
+    // This appears to stop it from ever streaming again,
+    // although we turn it on later. Need to check hackrf_transfer
+    // to see what is up
+    //
+    //    hackrf_stop_rx(dev);
+    restart_hackrf = true;
+  } else {
+    ROS_INFO("Configure HACKRF while not streaming..");
+  }
+
+  if ( output -> sample_rate != input -> sample_rate ) {
+    hackrf_set_sample_rate(dev, input -> sample_rate);
+    output -> sample_rate = input -> sample_rate;
+
+    output -> baseband_filter_bw_hz = hackrf_compute_baseband_filter_bw_round_down_lt(input -> sample_rate);
+    int result = hackrf_set_baseband_filter_bandwidth(dev, output -> baseband_filter_bw_hz);
+
     delay = (delay < HACKRF_SETTLE_TIME_NS) ? HACKRF_SETTLE_TIME_NS : delay;
-    ROS_INFO("Set HACKRF sample_rate to %f\n", output -> sampleRate);
+    ROS_INFO("Set HACKRF sample_rate to %f and filter %d\n", 
+	     output -> sample_rate, output -> baseband_filter_bw_hz);
   }
 
   if (output -> frequency != input -> frequency ) {
-    ROS_INFO("Try to set HACKRF frequency to %lu\n", input -> frequency);
+    ROS_INFO("Try to set HACKRF frequency to %llu\n", input -> frequency);
     hackrf_set_freq(dev, input -> frequency);
     output -> frequency = input -> frequency;
     delay = (delay < HACKRF_SETTLE_TIME_NS) ? HACKRF_SETTLE_TIME_NS : delay;
-    ROS_INFO("HACKRF frequency set to %lu\n", output -> frequency);
+    ROS_INFO("HACKRF frequency set to %llu\n", output -> frequency);
   }
 
   if ( output -> lnaGain != input -> lnaGain) {
     hackrf_set_lna_gain(dev, input -> lnaGain);
     output -> lnaGain = input -> lnaGain;
-    ROS_INFO("Set HACKRF gain to %d\n", output -> lnaGain);
+    ROS_INFO("Set HACKRF lna gain to %d\n", output -> lnaGain);
   }
 
   if ( output -> vgaGain != input -> vgaGain) {
     hackrf_set_vga_gain(dev, input -> vgaGain);
     output -> vgaGain = input -> vgaGain;
-    ROS_INFO("Set HACKRF gain to %d\n", output -> vgaGain);
+    ROS_INFO("Set HACKRF vga gain to %d\n", output -> vgaGain);
   }
 
   if ( output -> txvgaGain != input -> txvgaGain) {
     hackrf_set_txvga_gain(dev, input -> txvgaGain);
     output -> txvgaGain = input -> txvgaGain;
-    ROS_INFO("Set HACKRF gain to %d\n", output -> txvgaGain);
+    ROS_INFO("Set HACKRF txvga gain to %d\n", output -> txvgaGain);
   }
 
 
@@ -120,43 +197,12 @@ hackrf_set_config(hackrf_device *dev,
     hackrf_discard_samples = false;
   }
 
-  return delay;
-}
-
-bool hackrf_config_srv(ros_sdr::hackrf_config_srv::Request  &req,
-		   ros_sdr::hackrf_config_srv::Response &res)
-{
-  hackrf_set_config(hackrfDev, &res.output, &req.input);
-  hackrf_current_state = res.output;
-  ROS_INFO("COMBO sending back response:\n");
-  return true;
-}
-
-
-bool hackrf_config_current(ros_sdr::hackrf_config_current::Request  &req,
-		   ros_sdr::hackrf_config_current::Response &res)
-{
-  ROS_INFO("hackrf_config_current sending back response:");
-  res.output = hackrf_current_state;
-  return true;
-}
-
-
-int hackrf_rx_callback(hackrf_transfer* transfer)
-{
-  int i;
-  if ( hackrf_verbose ) {
-    fprintf(stderr,"rx_callback %d bytes\n", transfer -> valid_length);
+  if ( restart_hackrf ) {
+    ROS_INFO("Restart HACKRF streaming..");
+    //    hackrf_start_rx(dev, hackrf_rx_callback, NULL);
   }
 
-  ROS_INFO("Got %d bytes from hackrf_sdr\n", transfer -> valid_length);
-
-  //memcpy(&hackrfBuffer[hackrfBufferTail], 
-  //	 transfer -> buffer, transfer -> valid_length);
-  //  hackrfBufferTail += transfer -> valid_length;
-
-
-  return 0; /* always be happy */
+  return delay;
 }
 
 
@@ -172,7 +218,8 @@ int main(int argc, char **argv)
 								    hackrf_config_current);
 
   ROS_INFO("Ready to configure hackrf_sdr.");
-  ros::Publisher hackrf_pub = n.advertise<ros_sdr::hackrf_data>("hackrf_out",
+
+  hackrf_pub = n.advertise<ros_sdr::hackrf_data>("hackrf_out",
 								1000);
   int out_block_size = MAXIMAL_BUF_LENGTH;
   uint32_t dev_index = 0;
@@ -194,7 +241,7 @@ int main(int argc, char **argv)
   ros_sdr::hackrf_config hackrf_init;
 
   hackrf_init.frequency = 700 * 1000000; // 700Mhz
-  hackrf_init.sampleRate = 2048000;
+  hackrf_init.sample_rate = 10000000;
   hackrf_init.lnaGain  = 16;
   hackrf_init.vgaGain  = 16;
   hackrf_init.txvgaGain  = 16;
@@ -203,7 +250,7 @@ int main(int argc, char **argv)
 
   hackrf_set_config(hackrfDev, &hackrf_current_state, &hackrf_init);
 
-  ros_sdr::hackrf_data msg;
+
   msg.output = hackrf_current_state;
 
   //  std::vector<uint8> *buffer = new std::vector<uint8>(block_size);
@@ -221,9 +268,6 @@ int main(int argc, char **argv)
     {
       int nread = 0;
       //      hackrf_read_sync(dev, buffer.data.data(), out_block_size, &nread);
-      if ( hackrf_verbose ) {
-	ROS_INFO("Got %d bytes from hackrf_sdr\n", nread);
-      }
 
       if ( hackrf_discard_samples ) {
 	//	hackrf_reset_buffer(hackrfDev);
@@ -237,8 +281,9 @@ int main(int argc, char **argv)
 	  hackrf_discard_samples = false;
 	}
       } else {
-	msg.output = hackrf_current_state;
-	hackrf_pub.publish(msg);
+	//
+	// message sent from hackrf_rx_callback
+	//
       }
 
       ros::spinOnce();
