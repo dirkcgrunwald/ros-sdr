@@ -6,8 +6,9 @@ import ros_sdr.srv
 hackrfState = None
 
 def fmt_output(output):
-    return "(%f MHz, %f MS/s, lnaGain %d, vgaGain %d)" % (output.frequency/1000000.0,
+    return "(%f MHz, %f MS/s, sample bw %f, lnaGain %d, vgaGain %d)" % (output.frequency/1000000.0,
                                                           output.sample_rate/1000000.0,
+                                                          output.baseband_filter_bw_hz/1000000.0,
                                                           output.lnaGain,
                                                           output.vgaGain)
 
