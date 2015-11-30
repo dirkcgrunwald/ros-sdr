@@ -81,29 +81,44 @@ bool hackrf_config_current(ros_sdr::hackrf_config_current::Request  &req,
 int hackrf_rx_callback(hackrf_transfer* transfer)
 {
   int i;
+
+
   if ( hackrf_verbose ) {
     fprintf(stderr,"rx_callback %d bytes\n", transfer -> valid_length);
   }
 
-  ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d\n",
-	   transfer -> valid_length, transfer -> buffer[0],  transfer -> buffer[1]);
+  if ( hackrf_discard_samples ) {
 
-  int offset = 0;
-  int lth = transfer -> valid_length;
-  std_msgs::UInt8MultiArray &buffer = msg.iq;
-  while (offset < lth) {
-    int left = transfer -> valid_length - offset;
-    int len = left;
-    if ( left > buffer.layout.dim[0].size ) {
-      len = buffer.layout.dim[0].size;
+    ros::Duration remaining = hackrf_discard_until - ros::Time::now();
+	
+    if ( hackrf_discard_until > ros::Time::now() ) {
+      ROS_INFO("Ignore data during transient.. (%d, %d) remaining...\n", remaining.sec, remaining.nsec);
+    } else {
+      ROS_INFO("Transient discard has passed...\n");
+      hackrf_discard_samples = false;
     }
-    memcpy(buffer.data.data(), &(transfer -> buffer[offset]), len);
-    msg.output = hackrf_current_state;
-    buffer.layout.dim[0].size = len;
-    hackrf_pub.publish(msg);
-    offset += len;
-  }
+  } else {
 
+    ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d\n",
+	     transfer -> valid_length, transfer -> buffer[0],  transfer -> buffer[1]);
+
+    int offset = 0;
+    int lth = transfer -> valid_length;
+    std_msgs::UInt8MultiArray &buffer = msg.iq;
+    while (offset < lth) {
+      int left = transfer -> valid_length - offset;
+      int len = left;
+      if ( left > buffer.layout.dim[0].size ) {
+	len = buffer.layout.dim[0].size;
+      }
+      memcpy(buffer.data.data(), &(transfer -> buffer[offset]), len);
+      msg.output = hackrf_current_state;
+      buffer.layout.dim[0].size = len;
+      hackrf_pub.publish(msg);
+      ros::spinOnce();
+      offset += len;
+    }
+  }
   return 0;
 }
 
@@ -125,11 +140,21 @@ hackrf_set_config(hackrf_device *dev,
     // although we turn it on later. Need to check hackrf_transfer
     // to see what is up
     //
-    //    hackrf_stop_rx(dev);
+    // hackrf_stop_rx(dev);
     restart_hackrf = true;
   } else {
     ROS_INFO("Configure HACKRF while not streaming..");
   }
+
+  //
+  // Discard samples if a finished sample is delivered while we are
+  // changing the configuration. This means we need to always set the
+  // discard to true or false at the end of this routine.
+  //
+
+  hackrf_discard_samples = true;
+  hackrf_discard_until = ros::Time::now() + ros::Duration(0, NS_TO_MS(5));
+
 
   if ( output -> sample_rate != input -> sample_rate ) {
     hackrf_set_sample_rate(dev, input -> sample_rate);
@@ -144,11 +169,11 @@ hackrf_set_config(hackrf_device *dev,
   }
 
   if (output -> frequency != input -> frequency ) {
-    ROS_INFO("Try to set HACKRF frequency to %llu\n", input -> frequency);
+    ROS_INFO("Try to set HACKRF frequency to %llu\n", (unsigned long long) input -> frequency);
     hackrf_set_freq(dev, input -> frequency);
     output -> frequency = input -> frequency;
     delay = (delay < HACKRF_SETTLE_TIME_NS) ? HACKRF_SETTLE_TIME_NS : delay;
-    ROS_INFO("HACKRF frequency set to %llu\n", output -> frequency);
+    ROS_INFO("HACKRF frequency set to %llu\n", (unsigned long long) output -> frequency);
   }
 
   if ( output -> lnaGain != input -> lnaGain) {
@@ -199,7 +224,7 @@ hackrf_set_config(hackrf_device *dev,
 
   if ( restart_hackrf ) {
     ROS_INFO("Restart HACKRF streaming..");
-    //    hackrf_start_rx(dev, hackrf_rx_callback, NULL);
+    hackrf_start_rx(dev, hackrf_rx_callback, NULL);
   }
 
   return delay;
@@ -263,33 +288,11 @@ int main(int argc, char **argv)
 
   hackrf_start_rx(hackrfDev, hackrf_rx_callback, NULL);
 
-  int count = 0;
+  ros::Rate rate(200);
   while (ros::ok())
     {
-      int nread = 0;
-      //      hackrf_read_sync(dev, buffer.data.data(), out_block_size, &nread);
-
-      if ( hackrf_discard_samples ) {
-	//	hackrf_reset_buffer(hackrfDev);
-
-	ros::Duration remaining = hackrf_discard_until - ros::Time::now();
-	
-	if ( hackrf_discard_until > ros::Time::now() ) {
-	  ROS_INFO("Ignore data during transient.. (%d, %d) remaining...\n", remaining.sec, remaining.nsec);
-	} else {
-	  ROS_INFO("Transient discard has passed...\n");
-	  hackrf_discard_samples = false;
-	}
-      } else {
-	//
-	// message sent from hackrf_rx_callback
-	//
-      }
-
       ros::spinOnce();
-
-      //      loop_rate.sleep();
-      ++count;
+      rate.sleep();
     }
 
 
