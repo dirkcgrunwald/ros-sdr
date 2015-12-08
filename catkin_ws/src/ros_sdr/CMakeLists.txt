@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(ros_sdr)
 
+set(CMAKE_CXX_FLAGS "-std=c++11")
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -9,6 +11,10 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   message_generation
+  mavros
+  mavros_msgs
+  geometry_msgs
+  sensor_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -203,7 +209,7 @@ add_executable(hackrf_sdr src/hackrf_sdr.cpp)
 target_link_libraries(hackrf_sdr ${catkin_LIBRARIES} hackrf)
 add_dependencies(hackrf_sdr ros_sdr_generate_messages_cpp)
 
-add_executable(listener src/listener.cpp)
-target_link_libraries(listener ${catkin_LIBRARIES})
-add_dependencies(listener ros_sdr_generate_messages_cpp)
+add_executable(sdr_recorder src/sdr_recorder.cpp src/sdr_data.pb.cc)
+target_link_libraries(sdr_recorder ${catkin_LIBRARIES} protobuf)
+add_dependencies(sdr_recorder ros_sdr_generate_messages_cpp)
 

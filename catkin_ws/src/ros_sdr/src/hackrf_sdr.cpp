@@ -245,7 +245,7 @@ int main(int argc, char **argv)
   ROS_INFO("Ready to configure hackrf_sdr.");
 
   hackrf_pub = n.advertise<ros_sdr::hackrf_data>("hackrf_out",
-								1000);
+						 1000);
   int out_block_size = MAXIMAL_BUF_LENGTH;
   uint32_t dev_index = 0;
 
