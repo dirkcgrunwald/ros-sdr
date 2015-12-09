@@ -42,6 +42,50 @@ pthread_cond_t newPose;
 static bool haveSeenPose = false;
 
 
+#include <zlib.h>
+
+/** Compress a STL string using zlib with given compression level and return
+ * the binary data. */
+void compress_string(const std::string& str,
+		     std::string& outstring,
+		     int compressionlevel = Z_BEST_SPEED)
+{
+  z_stream zs;                        // z_stream is zlib's control structure
+  memset(&zs, 0, sizeof(zs));
+
+  if (deflateInit(&zs, compressionlevel) != Z_OK)
+    throw(std::runtime_error("deflateInit failed while compressing."));
+
+  zs.next_in = (Bytef*)str.data();
+  zs.avail_in = str.size();           // set the z_stream's input
+
+  int ret;
+  char outbuffer[32768];
+
+  // retrieve the compressed bytes blockwise
+  do {
+    zs.next_out = reinterpret_cast<Bytef*>(outbuffer);
+    zs.avail_out = sizeof(outbuffer);
+
+    ret = deflate(&zs, Z_FINISH);
+
+    if (outstring.size() < zs.total_out) {
+      // append the block to the output string
+      outstring.append(outbuffer,
+		       zs.total_out - outstring.size());
+    }
+  } while (ret == Z_OK);
+
+  deflateEnd(&zs);
+
+  if (ret != Z_STREAM_END) {          // an error occurred that was not EOF
+    std::ostringstream oss;
+    oss << "Exception during zlib compression: (" << ret << ") " << zs.msg;
+    throw(std::runtime_error(oss.str()));
+  }
+}
+
+
 /**
  * This tutorial demonstrates simple receipt of messages over the ROS system.
  */
@@ -134,11 +178,15 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
     payload.add_q( msg.iq.data[i+ 1]);
   }
 
-  payload.SerializeToOstream(protobufOutput);
+  std::string data;
+  payload.SerializeToString(&data);
+  std::string zdata;
+  compress_string(data, zdata);
+  //  unsigned int len = htonl( data.size() );
+  unsigned int len = zdata.size();
+  protobufOutput -> write((const char*) &len, sizeof(unsigned int));
+  protobufOutput -> write((const char*) zdata.data(), zdata.size());
   protobufOutput -> flush();
-  protobufOutput -> close();
-  std::exit(0);
-
 }
 
 void rtlsdr_outCallback(const ros_sdr::rtlsdr_data& msg)

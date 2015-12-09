@@ -210,6 +210,6 @@ target_link_libraries(hackrf_sdr ${catkin_LIBRARIES} hackrf)
 add_dependencies(hackrf_sdr ros_sdr_generate_messages_cpp)
 
 add_executable(sdr_recorder src/sdr_recorder.cpp src/sdr_data.pb.cc)
-target_link_libraries(sdr_recorder ${catkin_LIBRARIES} protobuf)
+target_link_libraries(sdr_recorder ${catkin_LIBRARIES} protobuf z)
 add_dependencies(sdr_recorder ros_sdr_generate_messages_cpp)
 
