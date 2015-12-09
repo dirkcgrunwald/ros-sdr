@@ -1,0 +1,67 @@
+package ros_sdr_proto;
+
+message hackrf_config {
+  required int64 frequency = 1;
+  required double sample_rate = 2;
+  optional int32 baseband_filter_bw_hz = 3;
+  optional int32 lnaGain = 4;
+  optional int32 vgaGain = 5;
+  optional bool ampEnable = 6;
+  optional bool antennaEnable = 7; 
+  optional int32 txvgaGain = 8;
+}
+
+message rtlsdr_config {
+  required int64 frequency = 1;
+  required uint32 sample_rate = 2;
+  optional int32 gain = 3;
+  optional int32 ppm_error = 4;
+  optional bool gainmode = 5;
+  optional bool dithering = 6;
+  optional bool direct_sampleing = 7;
+}
+
+message Point {
+  required double x = 1;
+  required double y = 2;
+  required double z = 3;
+}
+
+message Quaternion {
+  required double x = 1;
+  required double y = 2;
+  required double z = 3;
+  required double w = 4;
+}
+
+message Pose {
+  required Point position = 1;
+  required Quaternion orientation = 2;
+  required double latitude = 3;
+  required double longitude = 4;
+  required double altitude = 5;
+  repeated double position_covariance = 6;
+}
+
+message NavSatStatus {
+   required int32 status = 1;
+   required uint32 service = 2;
+}
+
+message timestamp {
+    required uint32 sec = 1;
+    required uint32 nsec = 2;
+}
+
+message sdr_payload {
+  required timestamp stamp = 1;
+
+  oneof sdr_config  {
+    hackrf_config hackrf = 2;
+    rtlsdr_config rtlsdr = 3;
+  }
+  repeated uint32 i = 4 [ packed = true ];
+  repeated uint32 q = 5 [ packed = true ];
+  optional Pose pose = 6;
+  optional NavSatStatus status = 7 ;
+}
