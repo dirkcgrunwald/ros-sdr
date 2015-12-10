@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/aanderson/ros-sdr/catkin_ws/install/setup.sh

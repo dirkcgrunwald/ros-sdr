@@ -1,0 +1,8 @@
+prefix=/home/aanderson/ros-sdr/catkin_ws/install
+
+Name: ros_sdr
+Description: Description of ros_sdr
+Version: 0.0.1
+Cflags: -I/home/aanderson/ros-sdr/catkin_ws/install/include
+Libs: -L/home/aanderson/ros-sdr/catkin_ws/install/lib -lros_sdr
+Requires: roscpp rospy std_msgs message_runtime

@@ -19,7 +19,7 @@
 #include "ros_sdr/hackrf_config_srv.h"
 #include "ros_sdr/hackrf_config_current.h"
 #include "ros_sdr/hackrf_data.h"
-
+#include "temp_mon/temp_val.h"
 #ifdef ROS_SDR_SUPPORT_RTL_SDR
 #include "ros_sdr/rtlsdr_config.h"
 #include "ros_sdr/rtlsdr_config_srv.h"
@@ -30,7 +30,7 @@
 #include "sdr_data.pb.h"
 
 
-#define PROTOBUF_FILE_OUTPUT_PREFIX "/tmp/sdr_recorder"
+#define PROTOBUF_FILE_OUTPUT_PREFIX "/mnt/data/sdr_recorder"
 #define PROTOBUF_FILE_OUTPUT_SUFFIX "ros_sdr_data"
 std::ofstream *protobufOutput = NULL;
 
@@ -45,6 +45,10 @@ struct {
   double altitude;
   double position_covariance[9];
 } pos_state;
+
+temp_mon::temp_val temp_state;
+
+static bool haveSeenTemp = false;
 
 pthread_cond_t newPose;
 static bool haveSeenPose = false;
@@ -107,6 +111,7 @@ void emitProtobuf(std::string& data, std::ofstream *output)
 }
 
 
+
 /**
  * This tutorial demonstrates simple receipt of messages over the ROS system.
  */
@@ -134,9 +139,20 @@ void SDRGPSCallback(const sensor_msgs::NavSatFix& msg)
   haveSeenPose = true;
 }
 
+void SDRtempCallback(const temp_mon::temp_val& msg)
+{
+  temp_state = msg;
+  haveSeenTemp = true;
+}
+  
 
 void addGPS(ros_sdr_proto::sdr_config_payload& payload)
 {
+  if ( haveSeenTemp ) {
+    payload.set_temperature( temp_state.temp );
+    
+  }
+
   if ( ! haveSeenPose ) {
     return;
   }
@@ -247,6 +263,11 @@ int main(int argc, char **argv)
 
   protobufOutput = new std::ofstream(filename,
 				     std::ios::out | std::ios::trunc | std::ios::binary);
+
+  // Setup Subscribers:
+  ros::Subscriber sub_pos = n.subscribe("pose", 50, SDRposCallback);
+  ros::Subscriber sub_gps = n.subscribe("gps", 50, SDRGPSCallback);
+  ros::Subscriber sub_temp = n.subscribe("temp", 50, SDRtempCallback);
 
   //
   // do not put a long back-up queue on these. The the system is having
