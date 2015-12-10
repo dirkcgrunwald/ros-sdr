@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package ros_sdr_proto;
 
 message hackrf_config {
