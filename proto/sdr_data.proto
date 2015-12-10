@@ -67,6 +67,7 @@ message sdr_config_payload {
   optional Pose pose = 6;
   optional NavSatStatus status = 7 ;
   required bool iq_compressed = 8 [default = true ];
+  optional double temperature = 9; // from i2c sensor, if available
 }
 
 message iq_payload {
