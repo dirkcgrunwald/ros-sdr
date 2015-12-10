@@ -58,10 +58,12 @@ message timestamp {
 message sdr_config_payload {
   required timestamp stamp = 1;
 
-  oneof sdr_config  {
-    hackrf_config hackrf = 2;
-    rtlsdr_config rtlsdr = 3;
-  }
+  //
+  // protobuf2 does not support oneof and that's what
+  // is one the arm.
+  //
+  optional hackrf_config hackrf = 2;
+  optional rtlsdr_config rtlsdr = 3;
   optional Pose pose = 6;
   optional NavSatStatus status = 7 ;
 }

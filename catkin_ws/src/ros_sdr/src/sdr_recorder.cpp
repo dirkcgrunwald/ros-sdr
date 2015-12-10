@@ -223,9 +223,14 @@ int main(int argc, char **argv)
 
   protobufOutput = new std::ofstream(PROTOBUFF_FILE_OUTPUT_NAME, std::ios::out | std::ios::trunc | std::ios::binary);
 
-  ros::Subscriber sub_hackrf = n.subscribe("hackrf_out", 1000, hackrf_outCallback);
+  //
+  // do not put a long back-up queue on these. The the system is having
+  // trouble keeping up, you'll backlog the queue and suck up all the RAM.
+  // Better to just lose some packets.
+  //
+  ros::Subscriber sub_hackrf = n.subscribe("hackrf_out", 10, hackrf_outCallback);
 #ifdef ROS_SDR_SUPPORT_RTL_SDR
-  ros::Subscriber sub_rtlsdr = n.subscribe("rtlsdr_out", 1000, rtlsdr_outCallback);
+  ros::Subscriber sub_rtlsdr = n.subscribe("rtlsdr_out", 10, rtlsdr_outCallback);
 #endif
 
   ros::spin();
