@@ -34,7 +34,7 @@
 #define PROTOBUF_FILE_OUTPUT_SUFFIX "ros_sdr_data"
 std::ofstream *protobufOutput = NULL;
 
-#define COMPRESS_DATA true
+#define COMPRESS_DATA false
 
 struct {
   ros::Time time_stamp;
@@ -130,9 +130,10 @@ void SDRGPSCallback(const sensor_msgs::NavSatFix& msg)
   pos_state.altitude = msg.altitude;
   for (int i = 0; i < 9; i++) {
     pos_state.position_covariance[i] = msg.position_covariance[i];
+  
   }
   pthread_cond_signal(&newPose);
-
+  ROS_INFO("Lat: %f Lon: %f Alt: %f ",pos_state.latitude,pos_state.longitude,pos_state.altitude);
   //
   // We want to check if the GPS header makes sense...
   //
@@ -169,6 +170,11 @@ void addGPS(ros_sdr_proto::sdr_config_payload& payload)
   pose.mutable_orientation() -> set_y( pos_state.pose.orientation.y );
   pose.mutable_orientation() -> set_z( pos_state.pose.orientation.z );
   pose.mutable_orientation() -> set_w( pos_state.pose.orientation.w );
+  
+  pose.set_latitude(pos_state.latitude);
+  pose.set_longitude(pos_state.longitude);
+  pose.set_altitude(pos_state.altitude);
+
 
   for (int i = 0; i < 9; i++) {
     pose.add_position_covariance( pos_state.position_covariance[i] );
