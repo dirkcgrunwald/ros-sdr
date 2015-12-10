@@ -1,0 +1,9 @@
+<launch>
+<node pkg="ros_sdr" type="sdr_recorder" name="sdr_recorder" output="screen">
+    <remap from="pose"   to="/mavros/local_position/pose"/>
+    <remap from="gps"   to="/mavros/global_position/raw/fix"/>
+    <remap from="temp"   to="/temp_mon"/>
+
+</node>
+
+</launch>

@@ -1,2 +1,0 @@
-ros_sdr
--DCATKIN_DEVEL_PREFIX=/home/aanderson/ros-sdr/catkin_ws/devel -DCMAKE_INSTALL_PREFIX=/home/aanderson/ros-sdr/catkin_ws/install -G Unix Makefiles

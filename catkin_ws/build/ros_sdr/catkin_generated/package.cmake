@@ -1,7 +1,0 @@
-set(_CATKIN_CURRENT_PACKAGE "ros_sdr")
-set(ros_sdr_MAINTAINER "Dirk <dirk.grunwald@gmail.com>")
-set(ros_sdr_DEPRECATED "")
-set(ros_sdr_VERSION "0.0.1")
-set(ros_sdr_BUILD_DEPENDS "roscpp" "rospy" "std_msgs" "message_generation")
-set(ros_sdr_RUN_DEPENDS "message_runtime" "roscpp" "rospy" "std_msgs")
-set(ros_sdr_BUILDTOOL_DEPENDS "catkin")
