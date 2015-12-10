@@ -2,6 +2,7 @@
 #include "ros/header.h"
 #include <fstream>
 #include <endian.h>
+#include <time.h>
 
 #include <mavros/mavros.h>
 #include <mavros_msgs/SetMode.h>
@@ -29,9 +30,11 @@
 #include "sdr_data.pb.h"
 
 
-#define PROTOBUFF_FILE_OUTPUT_NAME "/tmp/sdr_recorder.data"
+#define PROTOBUF_FILE_OUTPUT_PREFIX "/tmp/sdr_recorder"
+#define PROTOBUF_FILE_OUTPUT_SUFFIX "ros_sdr_data"
 std::ofstream *protobufOutput = NULL;
 
+#define COMPRESS_DATA true
 
 struct {
   ros::Time time_stamp;
@@ -189,6 +192,12 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
   hackrf.set_antennaenable(msg.output.antennaEnable);
   hackrf.set_txvgagain(msg.output.txvgaGain);
 
+  if ( COMPRESS_DATA ) {
+    payload.set_iq_compressed(true);
+  } else {
+    payload.set_iq_compressed(false);
+  }
+
   std::string data;
   payload.SerializeToString(&data);
   emitProtobuf(data, protobufOutput);
@@ -203,8 +212,12 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
   std::string iqdata;
   iqpayload.SerializeToString(&iqdata);
   std::string ziqdata;
-  compress_string(iqdata, ziqdata);
-  emitProtobuf(ziqdata, protobufOutput);
+  if ( COMPRESS_DATA ) {
+    compress_string(iqdata, ziqdata);
+    emitProtobuf(ziqdata, protobufOutput);
+  } else {
+    emitProtobuf(iqdata, protobufOutput);
+  }
 }
 
 #ifdef ROS_SDR_SUPPORT_RTL_SDR
@@ -221,7 +234,19 @@ int main(int argc, char **argv)
 
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  protobufOutput = new std::ofstream(PROTOBUFF_FILE_OUTPUT_NAME, std::ios::out | std::ios::trunc | std::ios::binary);
+  time_t t = time(0);
+  struct tm * now = localtime( & t );
+  char timestamp [256];
+  strftime (timestamp,80,"%Y-%m-%d-%H-%M-%S",now);
+  const int fileNameSize = 2048;
+  char filename[fileNameSize];
+  snprintf(filename, fileNameSize, "%s-%s.%s", PROTOBUF_FILE_OUTPUT_PREFIX, 
+	   timestamp,
+	   PROTOBUF_FILE_OUTPUT_SUFFIX);
+
+
+  protobufOutput = new std::ofstream(filename,
+				     std::ios::out | std::ios::trunc | std::ios::binary);
 
   //
   // do not put a long back-up queue on these. The the system is having

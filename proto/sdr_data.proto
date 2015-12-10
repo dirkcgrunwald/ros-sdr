@@ -66,6 +66,7 @@ message sdr_config_payload {
   optional rtlsdr_config rtlsdr = 3;
   optional Pose pose = 6;
   optional NavSatStatus status = 7 ;
+  required bool iq_compressed = 8 [default = true ];
 }
 
 message iq_payload {

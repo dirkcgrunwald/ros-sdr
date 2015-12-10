@@ -21,12 +21,16 @@ def printPayload(config, ziq):
     print "Has pose is", config.HasField('pose') # to see if it has pose
 
     if config.hackrf.frequency == 9010000:
-        print "Decompress..."
         iq = sdr_data_pb2.iq_payload()
-        iq.ParseFromString( zlib.decompress(ziq) )
+        if config.iq_compressed:
+            print "Decompress..."
+            iqdat = zlib.decompress(ziq)
+        else:
+            iqdat = ziq
+        iq.ParseFromString( iqdat )
         print "Samples is I:", len(iq.i), " Q:", len(iq.q)
-        iq = [(iq.i[n], iq.q[n]) for n in range(10)]
-        print "IQ is ", iq
+        piq = [(iq.i[n], iq.q[n]) for n in range(10)]
+        print "IQ is ", piq
     
 
 payload = sdr_data_pb2.sdr_config_payload()
