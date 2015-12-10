@@ -53,15 +53,18 @@ message timestamp {
     required uint32 nsec = 2;
 }
 
-message sdr_payload {
+message sdr_config_payload {
   required timestamp stamp = 1;
 
   oneof sdr_config  {
     hackrf_config hackrf = 2;
     rtlsdr_config rtlsdr = 3;
   }
-  repeated uint32 i = 4 [ packed = true ];
-  repeated uint32 q = 5 [ packed = true ];
   optional Pose pose = 6;
   optional NavSatStatus status = 7 ;
+}
+
+message iq_payload {
+  repeated uint32 i = 4 [ packed = true ];
+  repeated uint32 q = 5 [ packed = true ];
 }

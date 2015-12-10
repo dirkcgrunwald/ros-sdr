@@ -1,6 +1,8 @@
 #include "ros/ros.h"
 #include "ros/header.h"
 #include <fstream>
+#include <endian.h>
+
 #include <mavros/mavros.h>
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/CommandBool.h>
@@ -16,10 +18,13 @@
 #include "ros_sdr/hackrf_config_srv.h"
 #include "ros_sdr/hackrf_config_current.h"
 #include "ros_sdr/hackrf_data.h"
+
+#ifdef ROS_SDR_SUPPORT_RTL_SDR
 #include "ros_sdr/rtlsdr_config.h"
 #include "ros_sdr/rtlsdr_config_srv.h"
 #include "ros_sdr/rtlsdr_config_current.h"
 #include "ros_sdr/rtlsdr_data.h"
+#endif
 
 #include "sdr_data.pb.h"
 
@@ -85,6 +90,19 @@ void compress_string(const std::string& str,
   }
 }
 
+//
+// Write buffer to file with little endian unsigned length ahead of it
+//
+void emitProtobuf(std::string& data, std::ofstream *output)
+{
+  /* Test for a little-endian machine */
+  unsigned int len = htole32(data.size());
+
+  output -> write((const char*) &len, sizeof(unsigned int));
+  output -> write((const char*) data.data(), data.size());
+  output -> flush();
+}
+
 
 /**
  * This tutorial demonstrates simple receipt of messages over the ROS system.
@@ -114,7 +132,7 @@ void SDRGPSCallback(const sensor_msgs::NavSatFix& msg)
 }
 
 
-void addGPS(ros_sdr_proto::sdr_payload& payload)
+void addGPS(ros_sdr_proto::sdr_config_payload& payload)
 {
   if ( ! haveSeenPose ) {
     return;
@@ -136,7 +154,6 @@ void addGPS(ros_sdr_proto::sdr_payload& payload)
   for (int i = 0; i < 9; i++) {
     pose.add_position_covariance( pos_state.position_covariance[i] );
   }
-
   ros_sdr_proto::NavSatStatus& status = *payload.mutable_status();
   status.set_status( pos_state.status.status );
   status.set_service( pos_state.status.service );
@@ -152,7 +169,7 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
     return; // file isn't open
   }
 
-  ros_sdr_proto::sdr_payload payload;
+  ros_sdr_proto::sdr_config_payload payload;
 
   //
   // Time stamp will be over-written with GPS time if available
@@ -172,27 +189,30 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
   hackrf.set_antennaenable(msg.output.antennaEnable);
   hackrf.set_txvgagain(msg.output.txvgaGain);
 
-  int sz = msg.iq.layout.dim[0].size;
-  for(int i = 0; i < sz; i += 2) {
-    payload.add_i( msg.iq.data[i] );
-    payload.add_q( msg.iq.data[i+ 1]);
-  }
-
   std::string data;
   payload.SerializeToString(&data);
-  std::string zdata;
-  compress_string(data, zdata);
-  //  unsigned int len = htonl( data.size() );
-  unsigned int len = zdata.size();
-  protobufOutput -> write((const char*) &len, sizeof(unsigned int));
-  protobufOutput -> write((const char*) zdata.data(), zdata.size());
-  protobufOutput -> flush();
+  emitProtobuf(data, protobufOutput);
+
+  ros_sdr_proto::iq_payload iqpayload;
+  int sz = msg.iq.layout.dim[0].size;
+  for(int i = 0; i < sz; i += 2) {
+    iqpayload.add_i( msg.iq.data[i] );
+    iqpayload.add_q( msg.iq.data[i+ 1]);
+  }
+
+  std::string iqdata;
+  iqpayload.SerializeToString(&iqdata);
+  std::string ziqdata;
+  compress_string(iqdata, ziqdata);
+  emitProtobuf(ziqdata, protobufOutput);
 }
 
+#ifdef ROS_SDR_SUPPORT_RTL_SDR
 void rtlsdr_outCallback(const ros_sdr::rtlsdr_data& msg)
 {
   ROS_INFO("I heard rtlsdr message..\n");
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -204,7 +224,9 @@ int main(int argc, char **argv)
   protobufOutput = new std::ofstream(PROTOBUFF_FILE_OUTPUT_NAME, std::ios::out | std::ios::trunc | std::ios::binary);
 
   ros::Subscriber sub_hackrf = n.subscribe("hackrf_out", 1000, hackrf_outCallback);
+#ifdef ROS_SDR_SUPPORT_RTL_SDR
   ros::Subscriber sub_rtlsdr = n.subscribe("rtlsdr_out", 1000, rtlsdr_outCallback);
+#endif
 
   ros::spin();
 
