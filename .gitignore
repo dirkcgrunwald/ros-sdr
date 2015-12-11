@@ -4,3 +4,10 @@ Makefile
 cmake_install.cmake
 install_manifest.txt
 *~
+*_pb2.py
+*_pb2.pyc
+*_pb.h
+*_pb.cc
+.catkin_workspace
+build/
+devel/
