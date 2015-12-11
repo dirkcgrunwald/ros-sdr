@@ -115,7 +115,7 @@ int hackrf_rx_callback(hackrf_transfer* transfer)
       msg.output = hackrf_current_state;
       buffer.layout.dim[0].size = len;
       hackrf_pub.publish(msg);
-      ros::spinOnce();
+      //ros::spinOnce();
       offset += len;
     }
   }
