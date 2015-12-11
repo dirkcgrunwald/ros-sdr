@@ -41,6 +41,7 @@ def listener():
     hackrfState.output.sample_rate = 100000 # 100Hhz
     hackrfState.output.lnaGain=16
     hackrfState.output.vgaGain=62
+    hackrfState.iqstore.recording = 1
     hackrfState = hackrf_config_srv(hackrfState.output);
 
     print("updated hackrfState is now " + fmt_output(hackrfState.output) )

@@ -4,6 +4,10 @@
 #include <endian.h>
 #include <time.h>
 
+#include "ros_sdr/sdr_recorder_config.h"
+#include "ros_sdr/sdr_recorder_config_srv.h"
+#include "ros_sdr/sdr_recorder_config_current.h"
+
 #include <mavros/mavros.h>
 #include <mavros_msgs/SetMode.h>
 #include <mavros_msgs/CommandBool.h>
@@ -15,23 +19,27 @@
 #include <sensor_msgs/NavSatFix.h>
 #include <geometry_msgs/TransformStamped.h>
 #include "std_msgs/String.h"
+
 #include "ros_sdr/hackrf_config.h"
 #include "ros_sdr/hackrf_config_srv.h"
 #include "ros_sdr/hackrf_config_current.h"
 #include "ros_sdr/hackrf_data.h"
 #include "temp_mon/temp_val.h"
+
 #ifdef ROS_SDR_SUPPORT_RTL_SDR
-#include "ros_sdr/rtlsdr_config.h"
-#include "ros_sdr/rtlsdr_config_srv.h"
-#include "ros_sdr/rtlsdr_config_current.h"
-#include "ros_sdr/rtlsdr_data.h"
+#  include "ros_sdr/rtlsdr_config.h"
+#  include "ros_sdr/rtlsdr_config_srv.h"
+#  include "ros_sdr/rtlsdr_config_current.h"
+#  include "ros_sdr/rtlsdr_data.h"
 #endif
 
 #include "sdr_data.pb.h"
 
 
-#define PROTOBUF_FILE_OUTPUT_PREFIX "/mnt/data/sdr_recorder"
-#define PROTOBUF_FILE_OUTPUT_SUFFIX "ros_sdr_data"
+static std::string PROTOBUF_FILE_OUTPUT_DIR("/mnt/data");
+static std::string PROTOBUF_FILE_OUTPUT_PREFIX("ros_sdr");
+static std::string PROTOBUF_FILE_OUTPUT_SUFFIX("proto");
+
 std::ofstream *protobufOutput = NULL;
 
 #define COMPRESS_DATA false
@@ -55,6 +63,26 @@ static bool haveSeenPose = false;
 
 
 #include <zlib.h>
+
+void createProtobuf()
+{
+  time_t t = time(0);
+  struct tm * now = localtime( & t );
+  char timestamp [256];
+  strftime (timestamp,80,"%Y-%m-%d-%H-%M-%S",now);
+  const int fileNameSize = 2048;
+  char filename[fileNameSize];
+  snprintf(filename, fileNameSize, "%s/%s-proto-%s.%s", 
+	     PROTOBUF_FILE_OUTPUT_DIR.c_str(), 
+	     PROTOBUF_FILE_OUTPUT_PREFIX.c_str(), 
+	     timestamp,
+	     PROTOBUF_FILE_OUTPUT_SUFFIX.c_str());
+
+
+  protobufOutput = new std::ofstream(filename,
+				     std::ios::out | std::ios::trunc | std::ios::binary);
+}
+
 
 /** Compress a STL string using zlib with given compression level and return
  * the binary data. */
@@ -184,12 +212,39 @@ void addGPS(ros_sdr_proto::sdr_config_payload& payload)
   status.set_service( pos_state.status.service );
 }
 
+bool sdr_recorder_config_srv(ros_sdr::sdr_recorder_config_srv::Request  &req,
+		   ros_sdr::sdr_recorder_config_srv::Response &res)
+{
+  res.output = req.input;
+
+  if ( req.input.output_dir.length() > 0 ) {
+    PROTOBUF_FILE_OUTPUT_DIR = req.input.output_dir;
+  }
+  if ( req.input.output_prefix.length() > 0 ) {
+    PROTOBUF_FILE_OUTPUT_PREFIX = req.input.output_prefix;
+  }
+  if ( req.input.output_suffix.length() > 0 ) {
+    PROTOBUF_FILE_OUTPUT_SUFFIX = req.input.output_suffix;
+  }
+  return true;
+}
+
+
+bool sdr_recorder_config_current(ros_sdr::sdr_recorder_config_current::Request  &req,
+		   ros_sdr::sdr_recorder_config_current::Response &res)
+{
+  res.config.output_dir = PROTOBUF_FILE_OUTPUT_DIR;
+  res.config.output_prefix = PROTOBUF_FILE_OUTPUT_PREFIX;
+  res.config.output_suffix = PROTOBUF_FILE_OUTPUT_SUFFIX;
+  return true;
+}
+
  
 
 void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
 {
   if ( ! protobufOutput ) {
-    return; // file isn't open
+     createProtobuf();
   }
 
   ros_sdr_proto::sdr_config_payload payload;
@@ -235,19 +290,15 @@ int main(int argc, char **argv)
 
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  time_t t = time(0);
-  struct tm * now = localtime( & t );
-  char timestamp [256];
-  strftime (timestamp,80,"%Y-%m-%d-%H-%M-%S",now);
-  const int fileNameSize = 2048;
-  char filename[fileNameSize];
-  snprintf(filename, fileNameSize, "%s-%s.%s", PROTOBUF_FILE_OUTPUT_PREFIX, 
-	   timestamp,
-	   PROTOBUF_FILE_OUTPUT_SUFFIX);
+  ros::ServiceServer srv_sdr_recorder_config_srv
+    = n.advertiseService("sdr_recorder_config_srv",
+			 sdr_recorder_config_srv);
+
+ ros::ServiceServer srv_sdr_recorder_config_current
+   = n.advertiseService("sdr_recorder_config_current",
+			sdr_recorder_config_current);
 
 
-  protobufOutput = new std::ofstream(filename,
-				     std::ios::out | std::ios::trunc | std::ios::binary);
 
   // Setup Subscribers:
   ros::Subscriber sub_pos = n.subscribe("pose", 5, SDRposCallback);

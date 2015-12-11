@@ -57,6 +57,8 @@ find_package(catkin REQUIRED COMPONENTS
    rtlsdr_data.msg
    hackrf_config.msg
    hackrf_data.msg
+   hackrf_iqstore.msg
+   sdr_recorder_config.msg
  )
 
 ## Generate services in the 'srv' folder
@@ -66,6 +68,8 @@ find_package(catkin REQUIRED COMPONENTS
    rtlsdr_config_current.srv
    hackrf_config_srv.srv
    hackrf_config_current.srv
+   sdr_recorder_config_current.srv
+   sdr_recorder_config_srv.srv
  )
 
 ## Generate actions in the 'action' folder

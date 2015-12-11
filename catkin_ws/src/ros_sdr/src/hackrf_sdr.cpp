@@ -11,10 +11,11 @@
 #include "ros_sdr/hackrf_data.h"
 #include "libhackrf/hackrf.h"
 
-#define SDR_FILE_OUTPUT_DIR "/mnt/data/"
-#define SDR_FILE_OUTPUT_PREFIX "sdr_iq"
-#define SDR_FILE_OUTPUT_SUFFIX "ros_sdr_data"
-#define SDR_FILE_NEW_FILE_AFTER 10000000
+static std::string SDR_FILE_OUTPUT_DIR("/mnt/data");
+static std::string SDR_FILE_OUTPUT_PREFIX("ros_sdr");
+static std::string SDR_FILE_OUTPUT_SUFFIX("hackrf_data");
+static uint32_t SDR_FILE_NEW_FILE_AFTER = (1000 * 1000 * 1000); // gigabyte
+static int recording = 0; // don't record until asked...
 
 
 #define DEFAULT_SAMPLE_RATE	10000000
@@ -70,6 +71,22 @@ bool hackrf_config_srv(ros_sdr::hackrf_config_srv::Request  &req,
 {
   hackrf_set_config(hackrfDev, &res.output, &req.input);
   hackrf_current_state = res.output;
+
+  if ( req.store.output_dir.length() > 0 ) {
+    SDR_FILE_OUTPUT_DIR = req.store.output_dir;
+  }
+  if ( req.store.output_prefix.length() > 0 ) {
+    SDR_FILE_OUTPUT_PREFIX = req.store.output_prefix;
+  }
+  if ( req.store.output_suffix.length() > 0 ) {
+    SDR_FILE_OUTPUT_SUFFIX = req.store.output_suffix;
+  }
+  recording = req.store.recording;
+  res.store.recording = recording;
+
+  SDR_FILE_NEW_FILE_AFTER = req.store.new_file_after;
+  res.store.new_file_after = SDR_FILE_NEW_FILE_AFTER;
+
   ROS_INFO("COMBO sending back response:\n");
   return true;
 }
@@ -78,8 +95,12 @@ bool hackrf_config_srv(ros_sdr::hackrf_config_srv::Request  &req,
 bool hackrf_config_current(ros_sdr::hackrf_config_current::Request  &req,
 		   ros_sdr::hackrf_config_current::Response &res)
 {
-  ROS_INFO("hackrf_config_current sending back response:");
   res.output = hackrf_current_state;
+  res.store.output_dir = SDR_FILE_OUTPUT_DIR;
+  res.store.output_prefix = SDR_FILE_OUTPUT_PREFIX;
+  res.store.output_suffix = SDR_FILE_OUTPUT_SUFFIX;
+  res.store.recording = recording;
+  res.store.new_file_after = SDR_FILE_NEW_FILE_AFTER;
   return true;
 }
 
@@ -95,13 +116,13 @@ void hackrf_create()
     // format file name without specific leading directory
     // so that reading programs don't need to remove it
     //
-    ROS_INFO("current file null, create new: %s\n", hackrfFileFilename);
-    snprintf(hackrfFileFilename, fileNameSize, "%s-%s-part%04d.%s",
-	     SDR_FILE_OUTPUT_PREFIX, 
+    snprintf(hackrfFileFilename, fileNameSize, "%s-iq-%s-part%04d.%s",
+	     SDR_FILE_OUTPUT_PREFIX.c_str(), 
 	     hackrfFileTimestamp, hackrfPart++,
-	     SDR_FILE_OUTPUT_SUFFIX);
+	     SDR_FILE_OUTPUT_SUFFIX.c_str());
 
     std::string fullname(SDR_FILE_OUTPUT_DIR);
+    fullname += "/";
     fullname += hackrfFileFilename;
 
     ROS_INFO("current file null, create new: %s\n", fullname.c_str());
@@ -155,6 +176,10 @@ int hackrf_rx_callback(hackrf_transfer* transfer)
     fprintf(stderr,"rx_callback %d bytes\n", transfer -> valid_length);
   }
 
+  if ( !recording ) {
+    return 0;
+  }
+
   if ( hackrf_discard_samples ) {
 
     ros::Duration remaining = hackrf_discard_until - ros::Time::now();
@@ -168,8 +193,10 @@ int hackrf_rx_callback(hackrf_transfer* transfer)
   } else {
 
     if ( hackrf_pub.getNumSubscribers() < 1 ) {
-      ROS_INFO("Got %d bytes from hackrf_sdr, discard as no subscribers\n",
-	       transfer -> valid_length);
+      if ( hackrf_verbose ) {
+	ROS_INFO("Got %d bytes from hackrf_sdr, discard as no subscribers\n",
+		 transfer -> valid_length);
+      }
     } else {
 
       uint32_t offset = hackrf_ftell();
@@ -179,13 +206,14 @@ int hackrf_rx_callback(hackrf_transfer* transfer)
       msg.filename = std::string( hackrfFileFilename );
       hackrf_fwrite(transfer -> buffer, transfer -> valid_length);
       hackrf_pub.publish(msg);
-      ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d, write to offset %d\n",
-	       transfer -> valid_length,
-	       transfer -> buffer[0],
-	       transfer -> buffer[1],
-	       offset
-	       );
-
+      if ( hackrf_verbose ) {
+	ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d, write to offset %d\n",
+		 transfer -> valid_length,
+		 transfer -> buffer[0],
+		 transfer -> buffer[1],
+		 offset
+		 );
+      }
     }
   }
   return 0;

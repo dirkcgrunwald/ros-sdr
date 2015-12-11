@@ -1,6 +1,6 @@
 import sdr_data_pb2
 import sys
-import struct,zlib
+import struct,array,zlib
 
 if len(sys.argv) != 3:
     print "Usage:", sys.argv[0], "sdr_data_file sdr_iq_directory"
@@ -16,40 +16,33 @@ def getConfig(file):
 def getzPayload(file):
     return zlib.decompress( getConfig(file) )
 
-def getPayload(config):
-    filename = data_dir + config.filename
+def getPayload(data_dir, config):
+    filename = data_dir + "/" + config.filename
+    print "data file is ", filename
     fh = open(filename, "r")
     fh.seek(config.offset)
-    return fh.read(config.size)
+    data = array.array('B', fh.read(config.size))
+    fh.close()
+    return data
 
-def printConfig(config, ziq):
+def printConfig(data_dir, config):
     print "Frequency is ", config.hackrf.frequency
     print "Has pose is", config.HasField('pose') # to see if it has pose
     print "file name is ", config.filename, "at offset", config.offset
-
-    if config.hackrf.frequency == 9010000:
-        iq = sdr_data_pb2.iq_payload()
-        if config.iq_compressed:
-            print "Decompress..."
-            iqdat = zlib.decompress(ziq)
-        else:
-            iqdat = ziq
-        iq.ParseFromString( iqdat )
-        print "Samples is I:", len(iq.i), " Q:", len(iq.q)
-        piq = [(iq.i[n], iq.q[n]) for n in range(10)]
-        print "IQ is ", piq
+    data = getPayload(data_dir, config)
+    print "Samples is I:", len(data)/2
+    piq = [(data[2*n], data[2*n+1]) for n in range(10)]
+    print "IQ is ", piq
     
 
 payload = sdr_data_pb2.sdr_config_payload()
+data_try = "foo"
 try:
     f = open(sys.argv[1], "rb")
     data_dir = sys.argv[2]
+    print "Data lives in ", data_dir
     while f:
         payload.ParseFromString( getConfig(f) )
-        printPayload( payload )
+        printConfig( data_dir, payload )
 except IOError:
-    print sys.argv[1] + ": Could not open file.  Creating a new one."
-
-
-
-      
+    print sys.argv[1] + ": Could not open file."

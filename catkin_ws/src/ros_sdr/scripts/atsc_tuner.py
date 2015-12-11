@@ -10,9 +10,11 @@ def mhz(x):
 
 
 atscScan = [
-	  { 'freq' : mhz(533), 'dwell' : 1.0, 'rate' : mhz(6) },
-	  { 'freq' : mhz(617), 'dwell' : 1.0, 'rate' : mhz(6) }
+	  { 'freq' : mhz(533), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 },
+	  { 'freq' : mhz(617), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 }
 ]
+
+sleepBetweenScans = 10
 
 
 def fmt_output(output):
@@ -22,11 +24,7 @@ def fmt_output(output):
                                                           output.lnaGain,
                                                           output.vgaGain)
 
-def hackrfOutCallback(data):
-    rospy.loginfo(rospy.get_caller_id() + "Configuration %s", fmt_output(data.output))
-    rospy.loginfo("output " + data.iq.layout.dim[0].label + " has " + str(data.iq.layout.dim[0].size) + " samples")
-    rospy.loginfo("First two samples are (%d, %d)" % ( ord(data.iq.data[0]) , ord(data.iq.data[1]) ) )
-    rospy.loginfo("Length of data array is %d" % len(data.iq.data))
+
 
 def listener():
     rospy.init_node('listener', anonymous=True)
@@ -35,9 +33,22 @@ def listener():
     # get current state
     #
 
-    hackrf_config_srv = rospy.ServiceProxy('hackrf_config_srv', ros_sdr.srv.hackrf_config_srv)
+    sdr_recorder_config_srv = rospy.ServiceProxy('sdr_recorder_config_srv',
+                                           ros_sdr.srv.sdr_recorder_config_srv)
 
-    hackrf_config_current = rospy.ServiceProxy('hackrf_config_current', ros_sdr.srv.hackrf_config_current)
+    sdr_recorder_config_current = rospy.ServiceProxy('sdr_recorder_config_current',
+                                               ros_sdr.srv.sdr_recorder_config_current)
+
+    sdr_recorderState = sdr_recorder_config_current()
+    sdr_recorderState.config.output_prefix="atsc"
+    sdr_recorder_config_srv(sdr_recorderState.config)
+
+
+    hackrf_config_srv = rospy.ServiceProxy('hackrf_config_srv',
+                                           ros_sdr.srv.hackrf_config_srv)
+
+    hackrf_config_current = rospy.ServiceProxy('hackrf_config_current',
+                                               ros_sdr.srv.hackrf_config_current)
 
     hackrfState = hackrf_config_current()
 
@@ -49,13 +60,21 @@ def listener():
             hackrfState.output.sample_rate = scan['rate']
             hackrfState.output.lnaGain=16
             hackrfState.output.vgaGain=62
-            hackrfState = hackrf_config_srv(hackrfState.output);
+            hackrfState.store.output_prefix="atsc"
+            hackrfState.store.recording = 1
+            hackrfState = hackrf_config_srv(hackrfState.output, hackrfState.store);
             rospy.loginfo("updated hackrfState is now " + fmt_output(hackrfState.output) )
-            # rospy.Subscriber("hackrf_out", ros_sdr.msg.hackrf_data, hackrfOutCallback)
-
-            # spin() simply keeps python from exiting until this node is stopped
-            # rospy.spin()
             rospy.sleep( scan['dwell'] )
+
+            if (scan['sleepAfter'] > 0):
+                hackrfState.store.recording = 0
+                hackrfState = hackrf_config_srv(hackrfState.output, hackrfState.store)
+                rospy.sleep( scan['sleepAfter'] )
+        if sleepBetweenScans > 0:
+                hackrfState.store.recording = 0
+                hackrfState = hackrf_config_srv(hackrfState.output, hackrfState.store)
+                rospy.sleep( sleepBetweenScans )
+            
 
 if __name__ == '__main__':
     listener()

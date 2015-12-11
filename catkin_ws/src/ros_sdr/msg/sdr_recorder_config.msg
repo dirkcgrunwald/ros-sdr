@@ -1,0 +1,3 @@
+string output_dir
+string output_prefix
+string output_suffix
