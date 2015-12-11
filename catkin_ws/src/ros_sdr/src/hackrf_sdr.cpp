@@ -11,6 +11,12 @@
 #include "ros_sdr/hackrf_data.h"
 #include "libhackrf/hackrf.h"
 
+#define SDR_FILE_OUTPUT_DIR "/mnt/data/"
+#define SDR_FILE_OUTPUT_PREFIX "sdr_iq"
+#define SDR_FILE_OUTPUT_SUFFIX "ros_sdr_data"
+#define SDR_FILE_NEW_FILE_AFTER 10000000
+
+
 #define DEFAULT_SAMPLE_RATE	10000000
 #define DEFAULT_BUF_LENGTH	(16 * 16384)
 #define MINIMAL_BUF_LENGTH	512
@@ -77,6 +83,68 @@ bool hackrf_config_current(ros_sdr::hackrf_config_current::Request  &req,
   return true;
 }
 
+static FILE *hackrfFile = NULL;
+static char hackrfFileTimestamp[256];
+static int hackrfPart = 1;
+static const int fileNameSize = 2048;
+static char hackrfFileFilename[fileNameSize];
+
+void hackrf_create()
+{
+    //
+    // format file name without specific leading directory
+    // so that reading programs don't need to remove it
+    //
+    ROS_INFO("current file null, create new: %s\n", hackrfFileFilename);
+    snprintf(hackrfFileFilename, fileNameSize, "%s-%s-part%04d.%s",
+	     SDR_FILE_OUTPUT_PREFIX, 
+	     hackrfFileTimestamp, hackrfPart++,
+	     SDR_FILE_OUTPUT_SUFFIX);
+
+    std::string fullname(SDR_FILE_OUTPUT_DIR);
+    fullname += hackrfFileFilename;
+
+    ROS_INFO("current file null, create new: %s\n", fullname.c_str());
+
+    hackrfFile = fopen(fullname.c_str(), "w");
+    if ( !hackrfFile ) {
+      ROS_INFO("unable to create file %s\n", fullname.c_str());
+      abort();
+    }
+}
+
+uint32_t hackrf_ftell()
+{
+  if ( ! hackrfFile  ) {
+    hackrf_create();
+  }
+  return ftell(hackrfFile);
+}
+
+uint32_t hackrf_fwrite(uint8_t *buffer, size_t len)
+{
+  if ( ! hackrfFile  ) {
+    hackrf_create();
+  }
+
+  uint32_t start = ftell(hackrfFile);
+  int written = fwrite(buffer, sizeof(char), len, hackrfFile);
+  fflush(hackrfFile);
+
+  if (written != len ) {
+    ROS_INFO("write to output file fell short: %d vs. expected %d\n",
+	     written, len);
+    abort();
+  }
+  
+  if (start >= SDR_FILE_NEW_FILE_AFTER ) {
+    fclose(hackrfFile);
+    hackrfFile = NULL;
+  }
+
+  return start;
+}
+
 
 int hackrf_rx_callback(hackrf_transfer* transfer)
 {
@@ -99,24 +167,25 @@ int hackrf_rx_callback(hackrf_transfer* transfer)
     }
   } else {
 
-    ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d\n",
-	     transfer -> valid_length, transfer -> buffer[0],  transfer -> buffer[1]);
+    if ( hackrf_pub.getNumSubscribers() < 1 ) {
+      ROS_INFO("Got %d bytes from hackrf_sdr, discard as no subscribers\n",
+	       transfer -> valid_length);
+    } else {
 
-    int offset = 0;
-    int lth = transfer -> valid_length;
-    std_msgs::UInt8MultiArray &buffer = msg.iq;
-    while (offset < lth) {
-      int left = transfer -> valid_length - offset;
-      int len = left;
-      if ( left > buffer.layout.dim[0].size ) {
-	len = buffer.layout.dim[0].size;
-      }
-      memcpy(buffer.data.data(), &(transfer -> buffer[offset]), len);
+      uint32_t offset = hackrf_ftell();
       msg.output = hackrf_current_state;
-      buffer.layout.dim[0].size = len;
+      msg.offset = offset;
+      msg.size = transfer -> valid_length;
+      msg.filename = std::string( hackrfFileFilename );
+      hackrf_fwrite(transfer -> buffer, transfer -> valid_length);
       hackrf_pub.publish(msg);
-      //ros::spinOnce();
-      offset += len;
+      ROS_INFO("Got %d bytes from hackrf_sdr, first two are %d, %d, write to offset %d\n",
+	       transfer -> valid_length,
+	       transfer -> buffer[0],
+	       transfer -> buffer[1],
+	       offset
+	       );
+
     }
   }
   return 0;
@@ -236,11 +305,13 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "hackrf_sdr");
   ros::NodeHandle n;
 
-  ros::ServiceServer srv_hackrf_config_srv = n.advertiseService("hackrf_config_srv",
-							    hackrf_config_srv);
+  ros::ServiceServer srv_hackrf_config_srv
+    = n.advertiseService("hackrf_config_srv",
+			 hackrf_config_srv);
 
-  ros::ServiceServer srv_hackrf_config_current = n.advertiseService("hackrf_config_current",
-								    hackrf_config_current);
+ ros::ServiceServer srv_hackrf_config_current
+   = n.advertiseService("hackrf_config_current",
+			hackrf_config_current);
 
   ROS_INFO("Ready to configure hackrf_sdr.");
 
@@ -275,16 +346,11 @@ int main(int argc, char **argv)
 
   hackrf_set_config(hackrfDev, &hackrf_current_state, &hackrf_init);
 
-
   msg.output = hackrf_current_state;
 
-  //  std::vector<uint8> *buffer = new std::vector<uint8>(block_size);
-  std_msgs::UInt8MultiArray &buffer = msg.iq;
-  buffer.layout.dim.push_back(std_msgs::MultiArrayDimension());
-  buffer.layout.dim[0].size = out_block_size;
-  buffer.layout.dim[0].stride = 1;
-  buffer.layout.dim[0].label = "IQ";
-  buffer.data.resize(out_block_size);
+  time_t t = time(0);
+  struct tm * now = localtime( & t );
+  strftime (hackrfFileTimestamp,80,"%Y-%m-%d-%H-%M-%S",now);
 
   hackrf_start_rx(hackrfDev, hackrf_rx_callback, NULL);
 

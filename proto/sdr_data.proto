@@ -57,19 +57,25 @@ message timestamp {
 
 message sdr_config_payload {
   required timestamp stamp = 1;
-
   //
   // protobuf2 does not support oneof and that's what
   // is one the arm.
   //
   optional hackrf_config hackrf = 2;
   optional rtlsdr_config rtlsdr = 3;
-  optional Pose pose = 6;
-  optional NavSatStatus status = 7 ;
-  required bool iq_compressed = 8 [default = true ];
+
+  required string filename = 4;
+  required uint32 offset = 5;
+  required uint32 size = 6;
+
+  optional Pose pose = 7;
+  optional NavSatStatus status = 8 ;
   optional double temperature = 9; // from i2c sensor, if available
 }
 
+//
+// Not used
+//
 message iq_payload {
   repeated uint32 i = 4 [ packed = true ];
   repeated uint32 q = 5 [ packed = true ];

@@ -188,8 +188,6 @@ void addGPS(ros_sdr_proto::sdr_config_payload& payload)
 
 void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
 {
-  ROS_INFO("I heard hackrf message..\n");
-
   if ( ! protobufOutput ) {
     return; // file isn't open
   }
@@ -201,6 +199,10 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
   //
   payload.mutable_stamp() -> set_sec(msg.header.stamp.sec );
   payload.mutable_stamp() -> set_nsec(msg.header.stamp.nsec );
+
+  payload.set_filename( msg.filename );
+  payload.set_offset( msg.offset );
+  payload.set_size( msg.size );
 
   addGPS(payload);
 
@@ -214,32 +216,9 @@ void hackrf_outCallback(const ros_sdr::hackrf_data& msg)
   hackrf.set_antennaenable(msg.output.antennaEnable);
   hackrf.set_txvgagain(msg.output.txvgaGain);
 
-  if ( COMPRESS_DATA ) {
-    payload.set_iq_compressed(true);
-  } else {
-    payload.set_iq_compressed(false);
-  }
-
   std::string data;
   payload.SerializeToString(&data);
   emitProtobuf(data, protobufOutput);
-
-  ros_sdr_proto::iq_payload iqpayload;
-  int sz = msg.iq.layout.dim[0].size;
-  for(int i = 0; i < sz; i += 2) {
-    iqpayload.add_i( msg.iq.data[i] );
-    iqpayload.add_q( msg.iq.data[i+ 1]);
-  }
-
-  std::string iqdata;
-  iqpayload.SerializeToString(&iqdata);
-  std::string ziqdata;
-  if ( COMPRESS_DATA ) {
-    compress_string(iqdata, ziqdata);
-    emitProtobuf(ziqdata, protobufOutput);
-  } else {
-    emitProtobuf(iqdata, protobufOutput);
-  }
 }
 
 #ifdef ROS_SDR_SUPPORT_RTL_SDR
@@ -271,9 +250,9 @@ int main(int argc, char **argv)
 				     std::ios::out | std::ios::trunc | std::ios::binary);
 
   // Setup Subscribers:
-  ros::Subscriber sub_pos = n.subscribe("pose", 50, SDRposCallback);
-  ros::Subscriber sub_gps = n.subscribe("gps", 50, SDRGPSCallback);
-  ros::Subscriber sub_temp = n.subscribe("temp", 50, SDRtempCallback);
+  ros::Subscriber sub_pos = n.subscribe("pose", 5, SDRposCallback);
+  ros::Subscriber sub_gps = n.subscribe("gps", 5, SDRGPSCallback);
+  ros::Subscriber sub_temp = n.subscribe("temp", 5, SDRtempCallback);
 
   //
   // do not put a long back-up queue on these. The the system is having
