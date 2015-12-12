@@ -59,7 +59,7 @@ def listener():
             hackrfState.output.frequency = scan['freq']
             hackrfState.output.sample_rate = scan['rate']
             hackrfState.output.lnaGain=16
-            hackrfState.output.vgaGain=62
+            hackrfState.output.vgaGain=40
             hackrfState.store.output_prefix="atsc"
             hackrfState.store.recording = 1
             hackrfState = hackrf_config_srv(hackrfState.output, hackrfState.store);

@@ -28,6 +28,13 @@ def getPayload(data_dir, config):
 def printConfig(data_dir, config):
     print "Frequency is ", config.hackrf.frequency
     print "Has pose is", config.HasField('pose') # to see if it has pose
+    if config.HasField('temperature'):
+        print "Temp is ", config.temperature
+    else:
+        print "I'm freezin' in here..."
+    if config.HasField('pose'):
+        print "Location lat", config.pose.latitude,\
+            "lon", config.pose.longitude, "alt", config.pose.altitude
     print "file name is ", config.filename, "at offset", config.offset
     data = getPayload(data_dir, config)
     print "Samples is I:", len(data)/2
