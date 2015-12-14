@@ -11,7 +11,7 @@ def mhz(x):
 
 atscScan = [
 	  { 'freq' : mhz(533), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 },
-	  { 'freq' : mhz(617), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 }
+	  { 'freq' : mhz(619), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 }
 ]
 
 sleepBetweenScans = 10
@@ -58,8 +58,8 @@ def listener():
         for scan in atscScan:
             hackrfState.output.frequency = scan['freq']
             hackrfState.output.sample_rate = scan['rate']
-            hackrfState.output.lnaGain=16
-            hackrfState.output.vgaGain=40
+            hackrfState.output.lnaGain=32
+            hackrfState.output.vgaGain=16
             hackrfState.store.output_prefix="atsc"
             hackrfState.store.recording = 1
             hackrfState = hackrf_config_srv(hackrfState.output, hackrfState.store);
