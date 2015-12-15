@@ -1,0 +1,97 @@
+Hummingboard Changes:
+----------------------
+Modified rules at:
+
+/etc/udev/rules.d
+60-i2c-tools.rules
+KERNEL=="i2c-0"     , GROUP="i2c", MODE="0660"
+KERNEL=="i2c-[1-9]*", GROUP="i2c", MODE="0666"
+
+52-hackrf.rules
+TTR{idVendor}=="1d50", ATTR{idProduct}=="604b", SYMLINK+="hackrf-jawbreaker-%k"
+, MODE="660", GROUP="plugdev"
+ATTR{idVendor}=="1d50", ATTR{idProduct}=="6089", SYMLINK+="hackrf-one-%k", MODE=
+"660", GROUP="plugdev"
+ATTR{idVendor}=="1fc9", ATTR{idProduct}=="000c", SYMLINK+="hackrf-dfu-%k", MODE=
+"660", GROUP="plugdev"
+
+Modified at:
+/etc/wpa_supplicant
+wpa_supplicant.conf
+network={
+        ssid="cubox_network"
+        scan_ssid=1
+        key_mgmt=WPA-PSK
+        psk="analog_password"
+}
+
+Modified at:
+/etc/network/interfaces
+
+Dirk's:
+auto wlan0
+     allow-hotplug wlan0
+     iface wlan0 inet dhcp
+     pre-up wpa_supplicant -B -Dwext -iwlan0 -c /etc/wpa_supplicant/wpa_supplica
+nt.conf
+     post-down killall -q wpa_supplicant
+
+
+Mine:
+auto wlan0
+       allow-hotplug wlan0
+       iface wlan0 inet dhcp
+       wpa-ssid cubox_network 
+       wpa-psk xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# to generate proper encrypted key: wpa_passphrase yourSSID yourpassword
+
+For rtl-sdr cloned:
+
+git://git.osmocom.org/rtl-sdr
+
+SSD Mounted at:
+
+/mnt/data 
+
+via:
+
+/etc/fstab
+# UNCONFIGURED FSTAB FOR BASE SYSTEM
+/dev/mmcblk0p1  /           ext4    defaults,noatime,nodiratime,data=writeback,commit=600,errors=remount-ro        0       0
+/dev/sda1       none    swap    sw      0       0
+/dev/sda2       /mnt/data       ext4    defaults        0               
+
+SSD Setup:
+partition drive using:
+http://tldp.org/HOWTO/Partition/fdisk_partitioning.html
+
+then make and ext4 files system in /dev/sda2 with:
+# mkfs.ext4 /dev/sda2
+then make the swap on /dev/sda1:
+# mkswap /dev/sda1
+
+then with the fstab settings up above you'll be set to go!
+
+Steps:
+1. Launch px4
+2. run temp
+3. run hackrf sdr
+4. launch recorder
+5. run tuner script
+
+Hummingboard Unit Information:
+
+hostname: cubox-00-i.local
+username: aanderson
+password: changeme
+description: older unit requiring WiFi dongle
+
+hostname: cubox-01-i.local
+username: aanderson
+password: changeme
+description: newer unit with integrated WiFi
+
+use ballon_launch.sh to run the whole thing
+to transfer data, something like:
+scp aanderson@cubox-01-i.local:/mnt/data/atsc-iq-2015-12-14-16-04-34-part0001.hackrf_data hb_rec10.bin
+
