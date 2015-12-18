@@ -10,11 +10,15 @@ def mhz(x):
 
 
 atscScan = [
-	  { 'freq' : mhz(533), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 },
-	  { 'freq' : mhz(619), 'dwell' : 2.0, 'rate' : mhz(6), 'sleepAfter': 1.0 }
+	  { 'freq' : mhz(527), 'dwell' : 1.0, 'rate' : mhz(6), 'sleepAfter': 0.5 },
+	  { 'freq' : mhz(549), 'dwell' : 1.0, 'rate' : mhz(6), 'sleepAfter': 0.5 },
+          { 'freq' : mhz(515), 'dwell' : 1.0, 'rate' : mhz(6), 'sleepAfter': 0.5 },
+          { 'freq' : mhz(497), 'dwell' : 1.0, 'rate' : mhz(6), 'sleepAfter': 0.5 },
+          { 'freq' : mhz(617), 'dwell' : 1.0, 'rate' : mhz(6), 'sleepAfter': 0.5 },
+          { 'freq' : mhz(569), 'dwell' : 1.0, 'rate' : mhz(6), 'sleepAfter': 0.5 }
 ]
 
-sleepBetweenScans = 10
+sleepBetweenScans = 3
 
 
 def fmt_output(output):
